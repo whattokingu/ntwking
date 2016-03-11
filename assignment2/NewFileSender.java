@@ -96,16 +96,18 @@ public class NewFileSender {
         if(this.repeatCount == 0){
           return;
         }else if(this.repeatCount == -1){
+          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
           scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), 200L, TimeUnit.MILLISECONDS);
         }else{
+          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
           scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), 200L, TimeUnit.MILLISECONDS);
         }
     }
     public long calculateDelay(int packetSeqNum, int lastAck){
-      if(packetSeqNum - lastAck > 30000 || lastAck > packetSeqNum){
-        return 2000L;
+      if(packetSeqNum - lastAck > 500000 || lastAck > packetSeqNum){
+        return 200L;
       }else{
-        return 100L;
+        return 50L;
       }
     }
   }
@@ -206,7 +208,7 @@ public class NewFileSender {
           scheduler.schedule(new SendPacketTask(dataPacket, this.seqNum, -1), 1L, TimeUnit.MILLISECONDS);
           seqNum += data.length - HEADERSIZE;
         }
-        // Thread.sleep(10);
+        // Thread.sleep(1);
       }
       bis.close();
       fis.close();
