@@ -96,11 +96,11 @@ public class NewFileSender {
         if(this.repeatCount == 0){
           return;
         }else if(this.repeatCount == -1){
-          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
-          scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), 200L, TimeUnit.MILLISECONDS);
+          scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
+          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, -1), 200L, TimeUnit.MILLISECONDS);
         }else{
-          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
-          scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), 200L, TimeUnit.MILLISECONDS);
+          scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
+          // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), 200L, TimeUnit.MILLISECONDS);
         }
     }
     public long calculateDelay(int packetSeqNum, int lastAck){
@@ -193,7 +193,7 @@ public class NewFileSender {
           data = setHeader(data, this.seqNum, 0, true);
           this.lastSeqNum = this.seqNum;
           DatagramPacket dataPacket = new DatagramPacket(data, data.length, this.address, this.port);
-          scheduler.schedule(new SendPacketTask(dataPacket, this.seqNum, 100), 1L, TimeUnit.MILLISECONDS);
+          scheduler.schedule(new SendPacketTask(dataPacket, this.seqNum, 1000), 1L, TimeUnit.MILLISECONDS);
           break;
         }else{
           // System.out.printf("sending packet:%d size: %d\n", this.seqNum, data.length);
