@@ -38,7 +38,7 @@ public class UnreliNET {
                 while (true) {
                     // read data from the incoming socket
                     sk1.receive(in_pkt);
-                    System.out.println("received packet");
+                    // System.out.println("received packet");
                     returnPort_sk1 = in_pkt.getPort();
 
                     // check the length of the packet
@@ -93,7 +93,7 @@ public class UnreliNET {
                 while (true) {
                     // read data from the incoming socket
                     sk2.receive(in_pkt);
-                    System.out.println("receive ack");
+                    // System.out.println("receive ack");
 
                     // check the length of the packet
                     if (in_pkt.getLength() > 1000) {

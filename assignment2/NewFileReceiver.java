@@ -24,6 +24,7 @@ class NewFileReceiver {
 
   //for performance tracking
   boolean firstTime = true;
+  int pendingPacketCount = 0;
 
   public static void main(String[] args) throws Exception {
 
@@ -55,7 +56,7 @@ class NewFileReceiver {
         System.out.println(starttime);
         this.firstTime = false;
       }
-      System.out.printf("received Packet: %d, size: %d, seqNum: %d expectedSeqNum: %d\n", calculateChecksum(dataPacket.getData(), dataPacket.getLength()), dataPacket.getLength(), getSeqNum(dataPacket), lastAck);
+      // System.out.printf("received Packet: %d, size: %d, seqNum: %d expectedSeqNum: %d\n", calculateChecksum(dataPacket.getData(), dataPacket.getLength()), dataPacket.getLength(), getSeqNum(dataPacket), lastAck);
       this.sendPort = dataPacket.getPort();
       this.sendAddress = dataPacket.getAddress();
       if(calculateChecksum(dataPacket.getData(), dataPacket.getLength()) != 0){
@@ -81,7 +82,8 @@ class NewFileReceiver {
         }
         if(this.isLastPacket){
           System.out.println("LAST PACKET RCVED. CLOSE SHOP");
-          System.out.printf("timetaken:%d, %d\n", starttime, (System.currentTimeMillis() - starttime));
+          System.out.printf("pending packets count: %d\n", this.pendingPacketCount);
+          System.out.printf("timetaken: %d\n", (System.currentTimeMillis() - starttime));
           break;
 
         }
@@ -92,7 +94,7 @@ class NewFileReceiver {
       int seqNum = getSeqNum(packet);
       if(seqNum == lastAck){
         this.isLastPacket = checkIfLastPacket(packet);
-        System.out.printf("packet seq num: %ds\n", seqNum);
+        System.out.printf("packet seq num: %d\n", seqNum);
         sendAck(seqNum + packet.getLength() - HEADERSIZE);
         lastAck = seqNum + packet.getLength() - HEADERSIZE;
         // System.out.printf("data: %s\n", new String(packet.getData(), HEADERSIZE, packet.getLength() - HEADERSIZE));
@@ -132,15 +134,19 @@ class NewFileReceiver {
         return;
       }else{
         // System.out.printf("putting into pending packets: %d, packetseq: %d\n", seqNum, getSeqNum(packet));
-        this.pendingPackets.put(new Integer(getSeqNum(packet)), packet);
+        this.pendingPackets.put(getSeqNum(packet), packet);
       }
     }
 
     public void checkPendingPackets() throws Exception{
-      if(this.pendingPackets.containsKey(new Integer(this.lastAck))){
-        DatagramPacket pkt = this.pendingPackets.get(new Integer(this.lastAck));
+      if(this.pendingPackets.containsKey(this.lastAck)){
+        this.pendingPacketCount++;
+        // System.out.println("taking from pending packets");
+        DatagramPacket pkt = this.pendingPackets.remove(this.lastAck);
 
         this.processPacket(pkt);
+      }else{
+        sendAck(lastAck);
       }
 
     }
@@ -154,7 +160,7 @@ class NewFileReceiver {
         byte[] data = new byte[HEADERSIZE];
         DatagramPacket packet = new DatagramPacket(data, HEADERSIZE, this.sendAddress, this.sendPort);
         data = setHeader(data, 0, ackNum);
-        System.out.printf("send ack: %d\n", ackNum);
+        // System.out.printf("send ack: %d\n", ackNum);
         packet.setData(data);
         this.sendSocket.send(packet);
     }

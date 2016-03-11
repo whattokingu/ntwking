@@ -37,15 +37,15 @@ public class NewFileSender {
             socket.receive(rcvPacket);
             if(calculateChecksum(rcvPacket.getData(), rcvPacket.getLength()) == 0){
               int ack = getAck(rcvPacket.getData());
-              System.out.printf("receive ack: %d, lastAck: %d\n", ack, lastAck );
+              // System.out.printf("receive ack: %d, lastAck: %d\n", ack, lastAck );
               if(!hasFirstPktAcked && ack == firstAckNum){
                 lastAck = firstAckNum;
                 hasFirstPktAcked = true;
               }else if(hasFirstPktAcked && ack > firstAckNum && ack > lastAck){
                 lastAck = ack;
               }else if(hasFirstPktAcked && ack > firstAckNum){
+                // System.out.println("respond to ack.");
                 DatagramPacket pkt = sentPackets.get(ack);
-                System.out.println("sending ack packet");
                 if(pkt != null){
                   sender.addPacket(sentPackets.get(ack));
                 }
@@ -86,7 +86,7 @@ public class NewFileSender {
       }
       public void run(){
         if(lastAck > packetSeqNum){
-          System.out.printf("cancellingg: %d\n", packetSeqNum);
+          // System.out.printf("cancellingg: %d\n", packetSeqNum);
           if(this.packetSeqNum == lastSeqNum){
             stopWork();
           }
@@ -101,6 +101,13 @@ public class NewFileSender {
           scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), 200L, TimeUnit.MILLISECONDS);
         }
     }
+    public long calculateDelay(int packetSeqNum, int lastAck){
+      if(packetSeqNum - lastAck > 30000 || lastAck > packetSeqNum){
+        return 2000L;
+      }else{
+        return 100L;
+      }
+    }
   }
     public class SocketSender extends Thread{
       private ConcurrentLinkedQueue<DatagramPacket> buffer;
@@ -112,10 +119,10 @@ public class NewFileSender {
           while(!stopSignal){
             if(!this.buffer.isEmpty()){
               DatagramPacket pkt = buffer.poll();
-              System.out.printf("sending packet: %d, arraylistlength: %d\n", getSeqNum(pkt), buffer.size());
+              // System.out.printf("sending packet: %d\n", getSeqNum(pkt));
               socket.send(pkt);
             }
-            Thread.sleep(1);
+            // Thread.sleep(1);
           }
         }catch(Exception e){
           e.printStackTrace();
@@ -164,7 +171,7 @@ public class NewFileSender {
         DatagramPacket dataPacket = new DatagramPacket(firstPkt, firstPkt.length, this.address, this.port);
         System.out.println("sending first packet");
         this.sender.addPacket(dataPacket);
-        Thread.sleep(100);
+        Thread.sleep(10);
         this.seqNum = this.firstAckNum;
       }
 
@@ -199,7 +206,7 @@ public class NewFileSender {
           scheduler.schedule(new SendPacketTask(dataPacket, this.seqNum, -1), 1L, TimeUnit.MILLISECONDS);
           seqNum += data.length - HEADERSIZE;
         }
-        Thread.sleep(10);
+        // Thread.sleep(10);
       }
       bis.close();
       fis.close();
