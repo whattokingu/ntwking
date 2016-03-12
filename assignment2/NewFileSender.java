@@ -104,10 +104,10 @@ public class NewFileSender {
         }
     }
     public long calculateDelay(int packetSeqNum, int lastAck){
-      if(packetSeqNum - lastAck > 500000 || lastAck > packetSeqNum){
+      if(packetSeqNum - lastAck > 100000 || lastAck > packetSeqNum){
         return 200L;
       }else{
-        return 50L;
+        return 20L;
       }
     }
   }
