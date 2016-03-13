@@ -71,7 +71,7 @@ class NewFileReceiver {
         e.printStackTrace();
       }
     }
-    
+
     public void addPacketToQueue(DatagramPacket packet){
       int seqNum = getSeqNum(packet);
       if(!pendingPackets.containsKey(seqNum)){
