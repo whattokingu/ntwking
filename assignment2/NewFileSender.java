@@ -102,15 +102,17 @@ public class NewFileSender {
           scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), calculateDelay(this.packetSeqNum, lastAck), TimeUnit.MILLISECONDS);
           // scheduler.schedule(new SendPacketTask(this.packet, this.packetSeqNum, this.repeatCount - 1), 200L, TimeUnit.MILLISECONDS);
         }
-    }
-    public long calculateDelay(int packetSeqNum, int lastAck){
-      if(packetSeqNum - lastAck > 500000 || lastAck > packetSeqNum){
-        return 200L;
-      }else{
-        return 50L;
+      }
+
+      public long calculateDelay(int packetSeqNum, int lastAck){
+        if(packetSeqNum - lastAck > 500000 || lastAck > packetSeqNum){
+          return 300L;
+        }else{
+          return 20L;
+        }
       }
     }
-  }
+
     public class SocketSender extends Thread{
       private ConcurrentLinkedQueue<DatagramPacket> buffer;
       private boolean stopSignal = false;
