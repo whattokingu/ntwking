@@ -209,13 +209,16 @@ public class FileSender {
     }
 
     public long calculateDelay(int packetSeqNum, int lastAck){
-      if(lastAck > packetSeqNum || packetSeqNum - lastAck > 1000000){
-        return 800L;
-      }
-      else if(packetSeqNum - lastAck > 500000){
-        return 300L;
+      if(packetSeqNum - lastAck < 10000){
+        return 1L;
+      }else if(packetSeqNum - lastAck < 100000){
+        return 20L;
+      }else if(packetSeqNum - lastAck < 500000){
+        return 50L;
+      }else if(packetSeqNum - lastAck < 1000000){
+        return 200L;
       }else{
-        return 80L;
+        return 800L;
       }
     }
     public static byte[] createFirstPacket(String rcvFileName){
