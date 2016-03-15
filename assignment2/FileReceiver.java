@@ -92,7 +92,7 @@ class FileReceiver {
         // System.out.printf("selected bytes %c, %c\n", packet.getData()[11], packet.getData()[999]);
         bos.write(packet.getData(), HEADERSIZE, packet.getLength() - HEADERSIZE);
         if(isLastPacket){
-          for(int i =0; i< 100; i++){
+          for(int i =0; i< 200; i++){
             sendAck(lastAck);
           }
           this.rcvSocket.close();
