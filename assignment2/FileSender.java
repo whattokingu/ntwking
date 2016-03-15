@@ -172,7 +172,6 @@ public class FileSender {
         byte[] data = new byte[size + HEADERSIZE];
         bis.read(data, HEADERSIZE, size);
         if(lastPacket){
-          System.out.printf("LAST PACKET:%d\n", this.seqNum);
           // System.out.printf("data: %s", new String(data, HEADERSIZE, data.length - HEADERSIZE));
           data = setHeader(data, this.seqNum, 0, true);
           this.lastSeqNum = this.seqNum;
@@ -200,7 +199,6 @@ public class FileSender {
     }
 
     public void stopWork(){
-      System.out.println("STOPWORK");
       this.scheduler.shutdownNow();
       this.receiver.stopWork();
       this.sender.stopWork();
@@ -210,9 +208,9 @@ public class FileSender {
 
     public long calculateDelay(int packetSeqNum, int lastAck){
       if(packetSeqNum - lastAck < 10000){
-        return 1L;
+        return 2L;
       }else if(packetSeqNum - lastAck < 100000){
-        return 20L;
+        return 25L;
       }else if(packetSeqNum - lastAck < 500000){
         return 50L;
       }else if(packetSeqNum - lastAck < 1000000){
@@ -235,6 +233,9 @@ public class FileSender {
       return ((data[4] << 24 & 0xFF000000 | (data[5] << 16  & 0x00FF0000) | (data[6] << 8  & 0x0000FF00) | data[7] & 0x000000FF));
     }
 
+    // first 4 bytes is sequence num, then 4 bytes of ack num,
+    // then next 2 bytes of checksum. last byte is used to indicate last packet.
+    // header size is 11 bytes.
     public static byte[] setHeader(byte[] header, int seq, int ack, boolean isLastPacket){
       byte[] seqByte = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(seq).array();
       byte[] ackByte = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(ack).array();
@@ -261,28 +262,36 @@ public class FileSender {
       int currentByte = 0;
       int checksum = 0;
       int data;
-      while(length >= 2){
-        //combine 2 bytes into 1 int(long).
-        data = (((packet[currentByte] << 8) & 0xFF00 ) | (packet[currentByte + 1] & 0xFF));
+      while(length - currentByte >= 2){
+        //combine 2 bytes into 1 int(16bit).
+        data = (((packet[currentByte] << 8) & 0x0000FF00 ) | (packet[currentByte + 1] & 0x000000FF));
         checksum+= data;
         //check for overflow(16bit)
         if((checksum & 0xFFFF0000) > 0){
-          checksum = checksum & 0xFFFF;
+          checksum = checksum & 0x0000FFFF;
           checksum += 1;
         }
         currentByte += 2;
-        length -= 2;
       }
-      if(length > 0){
-        checksum += ((packet[currentByte] << 8) & 0xFF00);
+      //handle if odd num of bytes
+      if(length - currentByte == 1){
+        checksum += ((packet[currentByte] << 8) & 0x0000FF00);
+        //handle overflow
         if((checksum & 0xFFFF0000) > 0){
-          checksum = checksum & 0xFFFF;
+          checksum = checksum & 0x0000FFFF;
           checksum += 1;
         }
       }
+      // handle overflow
+      if((checksum & 0xFFFF0000) > 0){
+        checksum = checksum & 0x0000FFFF;
+        checksum += 1;
+      }
+      //1's complement
       checksum = ~checksum;
-      checksum = checksum & 0xFFFF;
+      //take lower 16 bit
+      checksum = checksum & 0x0000FFFF;
       return checksum;
-  }
+    }
 
 }

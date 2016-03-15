@@ -207,21 +207,22 @@ class NewFileReceiver {
         packet.setData(data);
         this.sendSocket.send(packet);
     }
+    // first 4 bytes is sequence num, then 4 bytes of ack num,
+    // then next 2 bytes of checksum. last byte is used to indicate last packet.
+    // header size is 11 bytes.
     public static byte[] setHeader(byte[] packet, int seq, int ack){
       byte[] seqByte = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(seq).array();
       byte[] ackByte = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(ack).array();
-
       for(int i=0;i<4;i++){
         packet[i] = seqByte[i];
         packet[i+4] = ackByte[i];
       }
-      // System.out.println((header[0] << 24 | header[1] << 16 | header[2]<<8 | header[3]));
+
       int packetSize = packet.length;
       int checksum = calculateChecksum(packet, packetSize);
-      // System.out.printf("checksumCal: %d\n", checksum);
-      byte[] checksumByte = ByteBuffer.allocate(8).order(ByteOrder.BIG_ENDIAN).putLong(checksum).array();
-      packet[8] = checksumByte[6];
-      packet[9] = checksumByte[7];
+      byte[] checksumByte = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(checksum).array();
+      packet[8] = checksumByte[2];
+      packet[9] = checksumByte[3];
       return packet;
     }
 
@@ -229,8 +230,8 @@ class NewFileReceiver {
       int currentByte = 0;
       int checksum = 0;
       int data;
-      while(length >= 2){
-        //combine 2 bytes into 1 int(long).
+      while(length - currentByte >= 2){
+        //combine 2 bytes into 1 int(16bit).
         data = (((packet[currentByte] << 8) & 0x0000FF00 ) | (packet[currentByte + 1] & 0x000000FF));
         checksum+= data;
         //check for overflow(16bit)
@@ -239,21 +240,25 @@ class NewFileReceiver {
           checksum += 1;
         }
         currentByte += 2;
-        length -= 2;
       }
-      if(length == 1){
+      //handle if odd num of bytes
+      if(length - currentByte == 1){
         checksum += ((packet[currentByte] << 8) & 0x0000FF00);
+        //handle overflow
         if((checksum & 0xFFFF0000) > 0){
           checksum = checksum & 0x0000FFFF;
           checksum += 1;
         }
       }
+      // handle overflow
       if((checksum & 0xFFFF0000) > 0){
         checksum = checksum & 0x0000FFFF;
         checksum += 1;
       }
+      //1's complement
       checksum = ~checksum;
-      checksum = checksum & 0xFFFF;
+      //take lower 16 bit
+      checksum = checksum & 0x0000FFFF;
       return checksum;
-  }
+    }
 }
