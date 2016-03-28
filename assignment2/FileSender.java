@@ -27,6 +27,7 @@ public class FileSender {
     ScheduledThreadPoolExecutor scheduler;
     boolean stopSignal = false;
 
+    //Thread to listen on socket.
     public class SocketReceiver extends Thread{
       boolean stopSignal = false;
       public void run(){
@@ -35,6 +36,7 @@ public class FileSender {
           DatagramPacket rcvPacket = new DatagramPacket(rcvData, 1000);
           while(!stopSignal){
             socket.receive(rcvPacket);
+            //ignore corrupted packets.
             if(calculateChecksum(rcvPacket.getData(), rcvPacket.getLength()) == 0){
               int ack = getAck(rcvPacket.getData());
               // System.out.printf("receive ack: %d, lastAck: %d\n", ack, lastAck );
@@ -42,9 +44,11 @@ public class FileSender {
                 lastAck = firstAckNum;
                 hasFirstPktAcked = true;
               }else if(hasFirstPktAcked && ack > firstAckNum && ack > lastAck){
+                //update acks if incoming ack is bigger.
                 lastAck = ack;
               }else if(hasFirstPktAcked && ack > firstAckNum){
                 // System.out.println("respond to ack.");
+                //send packets that are 'acked'.
                 DatagramPacket pkt = sentPackets.get(ack);
                 if(pkt != null){
                   sender.addPacket(sentPackets.get(ack));
@@ -66,6 +70,8 @@ public class FileSender {
         this.stopSignal = true;
       }
     }
+    //class representing a producer of packets to be sent and added to a queue.
+    //This abstraction allows a scheduler(ScheduledThreadPoolExecutor) to schedule the packets easily.
     public class SendPacketTask implements Runnable{
       DatagramPacket packet;
       int packetSeqNum;
@@ -76,6 +82,7 @@ public class FileSender {
         this.repeatCount = repeat;
       }
       public void run(){
+        //drops task if ack number has surpass the packet's sequence number.
         if(lastAck > packetSeqNum){
           // System.out.printf("cancellingg: %d\n", packetSeqNum);
           if(this.packetSeqNum == lastSeqNum){
@@ -84,6 +91,7 @@ public class FileSender {
           return;
         }
         sender.addPacket(packet);
+        //repeatCount keeps track of how many times a packet is to be resent
         if(this.repeatCount == 0){
           return;
         }else if(this.repeatCount == -1){
@@ -95,7 +103,8 @@ public class FileSender {
         }
       }
     }
-
+    //a class that sends packets that arrives in a queue.
+    //functions as the consumer of the queue.
     public class SocketSender extends Thread{
       private ConcurrentLinkedQueue<DatagramPacket> buffer;
       private boolean stopSignal = false;
@@ -134,7 +143,8 @@ public class FileSender {
         new FileSender(args[0], args[1], args[2], args[3]);
         // new FileSender();
     }
-
+    //Main class that init the other classes/Threads.
+    //also reads the file to be sent.
     public FileSender(String fileToOpen, String host, String port, String rcvFileName) throws Exception {
       InetAddress serverAddress = InetAddress.getByName(host);
       int serverPort = Integer.parseInt(port);
@@ -151,6 +161,8 @@ public class FileSender {
       receiver.start();
       FileInputStream fis = new FileInputStream(fileToOpen);
       BufferedInputStream bis = new BufferedInputStream(fis, 1000 - HEADERSIZE);
+      //first packet contains the filename and is therefore special. Only when the first packet is acked, would
+      //the rest of the file be sent.
       while(!hasFirstPktAcked){
         byte[] firstPkt = createFirstPacket(rcvFileName);
         this.firstAckNum = firstPkt.length - HEADERSIZE;
@@ -161,6 +173,7 @@ public class FileSender {
         this.seqNum = this.firstAckNum;
       }
 
+      // At this point, first packet is sent and acked. The rest of the file is then sent.
       while(bis.available() > 0){
         boolean lastPacket = false;
         int size = bis.available();
@@ -171,19 +184,24 @@ public class FileSender {
         }
         byte[] data = new byte[size + HEADERSIZE];
         bis.read(data, HEADERSIZE, size);
+
+        //last packet is special. This can be better designed to combine the last packet/ordinary packet branch.
         if(lastPacket){
           // System.out.printf("data: %s", new String(data, HEADERSIZE, data.length - HEADERSIZE));
           data = setHeader(data, this.seqNum, 0, true);
           this.lastSeqNum = this.seqNum;
           DatagramPacket dataPacket = new DatagramPacket(data, data.length, this.address, this.port);
+
+          // packets are not sent directly.
+          //Instead, a scheduler would schedule when the packet is sent based on `calculateDelay`.
           scheduler.schedule(new SendPacketTask(dataPacket, this.seqNum, 1000), calculateDelay(this.seqNum, this.lastAck), TimeUnit.MILLISECONDS);
           break;
         }else{
           // System.out.printf("sending packet:%d size: %d\n", this.seqNum, data.length);
           data = setHeader(data, this.seqNum ,0, false);
-          // System.out.printf("data: %s", new String(data, HEADERSIZE, data.length - HEADERSIZE));
-          // System.out.printf("selected bytes: %c, %c\n", data[11], data[999]);
+
           DatagramPacket dataPacket = new DatagramPacket(data, data.length, this.address, this.port);
+          //'archive' the packets. When ack comes in, we can then send the packet immediately.
           if(!sentPackets.containsKey(seqNum)){
             sentPackets.put(seqNum, dataPacket);
           }
@@ -205,7 +223,8 @@ public class FileSender {
       this.socket.close();
       System.exit(0);
     }
-
+    //calculates delay based on how far the 'ack' number is from the packet's seqnum.
+    //if lastack > packetSeqNum, then the task would actually stop scheduling itself.
     public long calculateDelay(int packetSeqNum, int lastAck){
       if(packetSeqNum - lastAck < 10000){
         return 2L;
@@ -258,6 +277,7 @@ public class FileSender {
       byte[] data = packet.getData();
       return ((data[0] << 24 & 0xFF000000) | (data[1] << 16 & 0x00ff0000) | (data[2] << 8 & 0x0000FF00) | data[3] & 0x000000FF);
     }
+
     public static int calculateChecksum(byte[] packet, int length) {
       int currentByte = 0;
       int checksum = 0;

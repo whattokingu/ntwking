@@ -3,7 +3,6 @@
 import java.net.*;
 import java.net.SocketAddress;
 import java.io.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
@@ -23,7 +22,6 @@ class FileReceiver {
   HashMap<Integer, DatagramPacket> pendingPackets;
 
   //for performance tracking
-  boolean firstTime = true;
   int pendingPacketCount = 0;
   int totalPacketsNum = 0;
 
@@ -52,25 +50,30 @@ class FileReceiver {
       // System.out.printf("received Packet: %d, size: %d, seqNum: %d expectedSeqNum: %d\n", calculateChecksum(dataPacket.getData(), dataPacket.getLength()), dataPacket.getLength(), getSeqNum(dataPacket), lastAck);
       this.sendPort = dataPacket.getPort();
       this.sendAddress = dataPacket.getAddress();
+      //if packet is corrupted, then just send last ack.
       if(calculateChecksum(dataPacket.getData(), dataPacket.getLength()) != 0){
         sendAck(this.lastAck);
         continue;
       }else{
         int seqNum = getSeqNum(dataPacket);
-        if(seqNum == 0 && !hasReceivedFileName){
+        //process normal packet with a bool to control for when first packet has not arrived.
+        if(hasReceivedFileName){
+          processPacket(dataPacket);
+          //receive first packet.
+        }else if(seqNum == 0 && !hasReceivedFileName){
           // System.out.printf ("seqNum: %d", seqNum);
           sendAck(seqNum + dataPacket.getLength() - HEADERSIZE);
           this.lastAck = seqNum + dataPacket.getLength() - HEADERSIZE;
           this.fileName = getFileNameFromPacket(dataPacket);
           File file = new File(fileName);
-          hasReceivedFileName = true;
           file.createNewFile();
           System.out.printf("filename: %s\n", fileName);
           this.fos = new FileOutputStream(file);
           this.bos = new BufferedOutputStream(fos);
-        }else if(seqNum > 0 && hasReceivedFileName){
-          processPacket(dataPacket);
+          hasReceivedFileName = true;
+          //seqnum wraparound
         }else{
+          //should not come here. But either way, just sendAck.
           sendAck(lastAck);
         }
         if(this.isLastPacket){
@@ -81,8 +84,11 @@ class FileReceiver {
       }
     }
   }
+  //packet that got here is legit(no corruption)
     public void processPacket(DatagramPacket packet) throws Exception{
       int seqNum = getSeqNum(packet);
+      //process the packet's content only if seqnum matches the next seqnum we are expecting.
+      //if not we add it to pendingPackets, which we can then retrieve with `checkPendingPackets`.
       if(seqNum == lastAck){
         this.isLastPacket = checkIfLastPacket(packet);
         this.totalPacketsNum++;
@@ -92,6 +98,8 @@ class FileReceiver {
         // System.out.printf("selected bytes %c, %c\n", packet.getData()[11], packet.getData()[999]);
         bos.write(packet.getData(), HEADERSIZE, packet.getLength() - HEADERSIZE);
         if(isLastPacket){
+          //repeat ack many times to give a high probability that the ack is received. Either way, sender
+          //should self-terminate after some time.
           for(int i =0; i< 200; i++){
             sendAck(lastAck);
           }
@@ -103,6 +111,7 @@ class FileReceiver {
           checkPendingPackets();
         }
       }else{
+        //pending packets packets that arrived 'too early'. Store them and retrieve them with `checkPendingPackets`
         addToPendingPackets(packet, seqNum);
         sendAck(lastAck);
       }
@@ -121,6 +130,7 @@ class FileReceiver {
     }
 
     public void addToPendingPackets(DatagramPacket packet, int seqNum){
+      //add packet only if packet is 'too early' and has not been added.
       if(this.pendingPackets.containsKey((new Integer(getSeqNum(packet)))) || seqNum < lastAck){
         return;
       }else{
@@ -130,6 +140,7 @@ class FileReceiver {
     }
 
     public void checkPendingPackets() throws Exception{
+      //if we have already received the current expected packet, then we can just retrieve from here, and process it.
       if(this.pendingPackets.containsKey(this.lastAck)){
         this.pendingPacketCount++;
         // System.out.println("taking from pending packets");
